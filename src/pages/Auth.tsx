@@ -7,38 +7,62 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Train, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { post, setToken } from "@/lib/api";
 
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [signupError, setSignupError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    setTimeout(() => {
-      toast({
-        title: "Login Successful! 🎉",
-        description: "Welcome back to RailBook",
-      });
+    setLoginError(null);
+    try {
+      const form = e.currentTarget as HTMLFormElement;
+      const fd = new FormData(form);
+      const email = fd.get('login-email') as string;
+      const password = fd.get('login-password') as string;
+      const res = await post('/api/auth/login', { email, password }, false);
+      setToken(res.accessToken);
+      toast({ title: 'Login Successful! 🎉', description: 'Welcome back to RailBook' });
+      // If logged-in user is admin, redirect to admin dashboard
+      if (res.user && res.user.role === 'ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
+    } catch (err: any) {
+      const msg = err?.message ? String(err.message) : 'Login failed. Please try again.';
+      setLoginError(msg);
+    } finally {
       setIsLoading(false);
-      navigate("/");
-    }, 1000);
+    }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    setTimeout(() => {
-      toast({
-        title: "Account Created! 🎉",
-        description: "Welcome to RailBook",
-      });
+    setSignupError(null);
+    try {
+      const form = e.currentTarget as HTMLFormElement;
+      const fd = new FormData(form);
+      const name = fd.get('signup-name') as string;
+      const email = fd.get('signup-email') as string;
+      const phone = fd.get('signup-phone') as string;
+      const password = fd.get('signup-password') as string;
+      const res = await post('/api/auth/signup', { name, email, phone, password }, false);
+      setToken(res.accessToken);
+      toast({ title: 'Account Created! 🎉', description: 'Welcome to RailBook' });
+      navigate('/');
+    } catch (err: any) {
+      const msg = err?.message ? String(err.message) : 'Signup failed. Please check your input.';
+      setSignupError(msg);
+    } finally {
       setIsLoading(false);
-      navigate("/");
-    }, 1000);
+    }
   };
 
   return (
@@ -87,6 +111,9 @@ const Auth = () => {
                     placeholder="••••••••"
                     required
                   />
+                  {loginError && (
+                    <p className="text-sm text-destructive mt-2">{loginError}</p>
+                  )}
                 </div>
                 <Button
                   type="submit"
@@ -135,6 +162,9 @@ const Auth = () => {
                     required
                   />
                 </div>
+                {signupError && (
+                  <p className="text-sm text-destructive mt-2">{signupError}</p>
+                )}
                 <Button
                   type="submit"
                   className="w-full bg-accent hover:bg-accent/90"

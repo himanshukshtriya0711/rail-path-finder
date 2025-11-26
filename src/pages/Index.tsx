@@ -19,7 +19,8 @@ const Index = () => {
   const [trainClass, setTrainClass] = useState("");
 
   const handleSearch = () => {
-    if (from && to && date && trainClass) {
+    // allow searching without selecting class (optional)
+    if (from && to && date) {
       navigate("/search", { 
         state: { from, to, date: format(date, "yyyy-MM-dd"), trainClass } 
       });

@@ -6,14 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Train, IndianRupee, User, Phone, Mail, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Train, IndianRupee, User, Phone, Mail, CheckCircle2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { post } from "@/lib/api";
 
 const BookingPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { train, from, to, date, trainClass } = location.state || {};
+  const scheduleId = location.state?.scheduleId;
   
   const [passengers, setPassengers] = useState([
     { name: "", age: "", gender: "" }
@@ -24,13 +26,37 @@ const BookingPage = () => {
     setPassengers([...passengers, { name: "", age: "", gender: "" }]);
   };
 
-  const handleBooking = () => {
-    const pnr = `PNR${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-    toast({
-      title: "Booking Confirmed! 🎉",
-      description: `Your PNR is ${pnr}. Check your email for details.`,
+  const handleUpdatePassenger = (index: number, field: string, value: string) => {
+    setPassengers(prev => {
+      const copy = [...prev];
+      // ensure object exists
+      copy[index] = { ...(copy[index] || { name: '', age: '', gender: '' }), [field]: value };
+      return copy;
     });
-    setTimeout(() => navigate("/"), 2000);
+  };
+
+  const handleRemovePassenger = (index: number) => {
+    setPassengers(prev => {
+      if (prev.length > 1) {
+        return prev.filter((_, i) => i !== index);
+      }
+      // if only one passenger, reset the fields instead of removing the block
+      return [{ name: '', age: '', gender: '' }];
+    });
+  };
+
+  const handleBooking = async () => {
+    try {
+      const amount = Math.round((Number(train.fare) || 0) * passengers.length * 1.05);
+      const body = { scheduleId, passengers, contact, amount };
+      const res = await post('/api/bookings', body, true);
+      const pnr = res.pnr || res.booking?.pnr || res.bookingId || 'N/A';
+      toast({ title: 'Booking Confirmed! 🎉', description: `Your PNR is ${pnr}. Check your email for details.` });
+      setTimeout(() => navigate('/'), 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({ title: 'Booking failed', description: msg });
+    }
   };
 
   if (!train) {
@@ -80,20 +106,44 @@ const BookingPage = () => {
               </h2>
               
               {passengers.map((passenger, index) => (
-                <div key={index} className="mb-6 rounded-lg border p-4">
-                  <h3 className="mb-3 font-medium">Passenger {index + 1}</h3>
+                <div key={index} className="mb-6 rounded-lg border p-4 relative">
+                  <div className="flex items-start justify-between">
+                    <h3 className="mb-3 font-medium">Passenger {index + 1}</h3>
+                    <button
+                      type="button"
+                      title="Remove passenger"
+                      aria-label={`Remove passenger ${index + 1}`}
+                      onClick={() => handleRemovePassenger(index)}
+                      className="rounded-full p-1 hover:bg-muted"
+                    >
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label>Full Name</Label>
-                      <Input placeholder="Enter name" />
+                      <Input
+                        placeholder="Enter name"
+                        value={passenger.name}
+                        onChange={(e) => handleUpdatePassenger(index, 'name', e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Age</Label>
-                      <Input type="number" placeholder="Age" />
+                      <Input
+                        type="number"
+                        placeholder="Age"
+                        value={passenger.age}
+                        onChange={(e) => handleUpdatePassenger(index, 'age', e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Gender</Label>
-                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={passenger.gender}
+                        onChange={(e) => handleUpdatePassenger(index, 'gender', e.target.value)}
+                      >
                         <option value="">Select</option>
                         <option value="male">Male</option>
                         <option value="female">Female</option>
@@ -181,15 +231,15 @@ const BookingPage = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Base Fare</span>
                   <div className="flex items-center">
-                    <IndianRupee className="h-3 w-3" />
-                    <span className="font-semibold">{train.fare * passengers.length}</span>
-                  </div>
+                      <IndianRupee className="h-3 w-3" />
+                      <span className="font-semibold">{(Number(train.fare) || 0) * passengers.length}</span>
+                    </div>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">GST (5%)</span>
                   <div className="flex items-center">
                     <IndianRupee className="h-3 w-3" />
-                    <span>{Math.round(train.fare * passengers.length * 0.05)}</span>
+                      <span>{Math.round((Number(train.fare) || 0) * passengers.length * 0.05)}</span>
                   </div>
                 </div>
                 
@@ -198,9 +248,9 @@ const BookingPage = () => {
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total Amount</span>
                   <div className="flex items-center text-primary">
-                    <IndianRupee className="h-4 w-4" />
-                    <span>{Math.round(train.fare * passengers.length * 1.05)}</span>
-                  </div>
+                      <IndianRupee className="h-4 w-4" />
+                      <span>{Math.round((Number(train.fare) || 0) * passengers.length * 1.05)}</span>
+                    </div>
                 </div>
               </div>
               
